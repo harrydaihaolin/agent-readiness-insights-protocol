@@ -57,9 +57,13 @@ jobs:
     needs: test
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-      - run: pip install --upgrade agent-readiness
+      # Pin to >=1.1.0 because earlier versions don't yet exclude
+      # uv.lock from repo_shape.large_files.
+      - run: pip install --upgrade "agent-readiness>=1.1.0"
       - run: agent-readiness scan . --fail-below 95
