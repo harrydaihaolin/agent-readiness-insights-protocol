@@ -8,12 +8,11 @@ you want to add a field, add it here first.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated, Any, Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .version import PROTOCOL_VERSION, RULES_VERSION
-
 
 # Frozen at module import: every match type the OSS reference evaluator
 # recognises. ``PrivateMatch.type`` is forbidden from taking any of these
