@@ -32,7 +32,7 @@
     },
     "CompositeMatch": {
       "additionalProperties": false,
-      "description": "Boolean composition over OSS leaf match clauses.\n\nSemantics:\n- ``and``: composite fires when every clause produces \u22651 finding.\n  Emits one composite finding summarising the conjunction.\n- ``or``: composite fires when any clause produces \u22651 finding.\n  Emits one finding per clause that fired (preserves details).\n- ``not``: composite fires when the (single) clause produces 0\n  findings. Used to express \"X is missing\".\n\nNested ``CompositeMatch`` clauses are allowed up to a small depth\n(engines should cap recursion at 4 to keep evaluation predictable).",
+      "description": "Boolean composition over OSS leaf match clauses.\n\nSemantics:\n- ``and``: composite fires when every clause produces \u22651 finding.\n  Emits one composite finding summarising the conjunction.\n- ``or``: composite fires when any clause produces \u22651 finding.\n  Emits one finding per clause that fired (preserves details).\n- ``not``: composite fires when the (single) clause produces 0\n  findings. Used to express \"X is missing\".\n\nNested ``CompositeMatch`` clauses are allowed up to a small depth\n(engines should cap recursion at 4 to keep evaluation predictable).\nPrivateMatch clauses are also accepted so composite expressions can\nincorporate downstream-engine analyses.",
       "properties": {
         "clauses": {
           "items": {
@@ -54,6 +54,9 @@
               },
               {
                 "$ref": "#/$defs/CompositeMatch"
+              },
+              {
+                "$ref": "#/$defs/PrivateMatch"
               }
             ]
           },
@@ -202,6 +205,22 @@
       "title": "Pillar",
       "type": "string"
     },
+    "PrivateMatch": {
+      "additionalProperties": true,
+      "description": "Catch-all for non-OSS (private) match types.\n\nDownstream engines (e.g. ``agent-readiness-pro`` or the closed\ninsights engine) extend the rules pack with bespoke analyses such as\n``git_log_query``, ``ast_complexity``, or ``regex_secret_scan``.\nThese are registered in the engine via\n``register_private_matcher(type_name, fn)`` and are referenced from\nYAML rules as ``match.type: <name>``.\n\nThe protocol does not specify the *shape* of a PrivateMatch \u2014 every\nfield beyond ``type`` is engine-specific \u2014 so this model accepts\narbitrary extra fields. ``type`` is constrained only to forbid the\nsix OSS match-type names, preventing a malformed OSS rule from\nsilently being parsed as a private one. Engines that do not know\na given private type produce a ``not_measured`` finding rather\nthan crashing.",
+      "properties": {
+        "type": {
+          "description": "Engine-specific match type name; must NOT collide with an OSS type.",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "PrivateMatch",
+      "type": "object"
+    },
     "RegexInFilesMatch": {
       "additionalProperties": false,
       "properties": {
@@ -296,18 +315,7 @@
       "title": "Insight Query"
     },
     "match": {
-      "discriminator": {
-        "mapping": {
-          "command_in_makefile": "#/$defs/CommandInMakefileMatch",
-          "composite": "#/$defs/CompositeMatch",
-          "file_size": "#/$defs/FileSizeMatch",
-          "manifest_field": "#/$defs/ManifestFieldMatch",
-          "path_glob": "#/$defs/PathGlobMatch",
-          "regex_in_files": "#/$defs/RegexInFilesMatch"
-        },
-        "propertyName": "type"
-      },
-      "oneOf": [
+      "anyOf": [
         {
           "$ref": "#/$defs/FileSizeMatch"
         },
@@ -325,6 +333,9 @@
         },
         {
           "$ref": "#/$defs/CompositeMatch"
+        },
+        {
+          "$ref": "#/$defs/PrivateMatch"
         }
       ],
       "title": "Match"
