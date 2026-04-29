@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from .models import (
     CommandInMakefileMatch,
+    CompositeMatch,
     EvaluateRequest,
     EvaluateResponse,
     FileSizeMatch,
@@ -43,6 +44,7 @@ __all__ = [
     "ManifestFieldMatch",
     "RegexInFilesMatch",
     "CommandInMakefileMatch",
+    "CompositeMatch",
     "Match",
     "Rule",
     "Insight",

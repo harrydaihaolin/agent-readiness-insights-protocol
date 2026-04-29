@@ -30,6 +30,72 @@
       "title": "CommandInMakefileMatch",
       "type": "object"
     },
+    "CompositeMatch": {
+      "additionalProperties": false,
+      "description": "Boolean composition over OSS leaf match clauses.\n\nSemantics:\n- ``and``: composite fires when every clause produces \u22651 finding.\n  Emits one composite finding summarising the conjunction.\n- ``or``: composite fires when any clause produces \u22651 finding.\n  Emits one finding per clause that fired (preserves details).\n- ``not``: composite fires when the (single) clause produces 0\n  findings. Used to express \"X is missing\".\n\nNested ``CompositeMatch`` clauses are allowed up to a small depth\n(engines should cap recursion at 4 to keep evaluation predictable).",
+      "properties": {
+        "clauses": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FileSizeMatch"
+              },
+              {
+                "$ref": "#/$defs/PathGlobMatch"
+              },
+              {
+                "$ref": "#/$defs/ManifestFieldMatch"
+              },
+              {
+                "$ref": "#/$defs/RegexInFilesMatch"
+              },
+              {
+                "$ref": "#/$defs/CommandInMakefileMatch"
+              },
+              {
+                "$ref": "#/$defs/CompositeMatch"
+              }
+            ]
+          },
+          "minItems": 1,
+          "title": "Clauses",
+          "type": "array"
+        },
+        "op": {
+          "enum": [
+            "and",
+            "or",
+            "not"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Optional human-readable summary used as the composite finding message.",
+          "title": "Summary"
+        },
+        "type": {
+          "const": "composite",
+          "default": "composite",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "title": "CompositeMatch",
+      "type": "object"
+    },
     "FileSizeMatch": {
       "additionalProperties": false,
       "properties": {
@@ -233,6 +299,7 @@
       "discriminator": {
         "mapping": {
           "command_in_makefile": "#/$defs/CommandInMakefileMatch",
+          "composite": "#/$defs/CompositeMatch",
           "file_size": "#/$defs/FileSizeMatch",
           "manifest_field": "#/$defs/ManifestFieldMatch",
           "path_glob": "#/$defs/PathGlobMatch",
@@ -255,6 +322,9 @@
         },
         {
           "$ref": "#/$defs/CommandInMakefileMatch"
+        },
+        {
+          "$ref": "#/$defs/CompositeMatch"
         }
       ],
       "title": "Match"

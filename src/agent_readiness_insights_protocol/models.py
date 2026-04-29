@@ -35,9 +35,13 @@ class Severity(str, Enum):
 
 
 class MatchType(str, Enum):
-    """The five OSS match types. Engines may add private match types
+    """OSS match types. Engines may add private match types
     (e.g., ast_query, churn_signal) that are NOT in this enum and that
     the OSS reference evaluator will skip with a `not_measured` finding.
+
+    `composite` wraps any number of OSS match clauses with a boolean op
+    so callers can express "A AND NOT B"-style rules without growing
+    the leaf-matcher count.
     """
 
     FILE_SIZE = "file_size"
@@ -45,6 +49,7 @@ class MatchType(str, Enum):
     MANIFEST_FIELD = "manifest_field"
     REGEX_IN_FILES = "regex_in_files"
     COMMAND_IN_MAKEFILE = "command_in_makefile"
+    COMPOSITE = "composite"
 
 
 # ---------------------------------------------------------------------------
@@ -96,14 +101,47 @@ class CommandInMakefileMatch(BaseModel):
     fire_when: Literal["missing", "present"] = "missing"
 
 
+class CompositeMatch(BaseModel):
+    """Boolean composition over OSS leaf match clauses.
+
+    Semantics:
+    - ``and``: composite fires when every clause produces ≥1 finding.
+      Emits one composite finding summarising the conjunction.
+    - ``or``: composite fires when any clause produces ≥1 finding.
+      Emits one finding per clause that fired (preserves details).
+    - ``not``: composite fires when the (single) clause produces 0
+      findings. Used to express "X is missing".
+
+    Nested ``CompositeMatch`` clauses are allowed up to a small depth
+    (engines should cap recursion at 4 to keep evaluation predictable).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal[MatchType.COMPOSITE] = MatchType.COMPOSITE
+    op: Literal["and", "or", "not"]
+    clauses: list[
+        "FileSizeMatch | PathGlobMatch | ManifestFieldMatch | "
+        "RegexInFilesMatch | CommandInMakefileMatch | CompositeMatch"
+    ] = Field(default_factory=list, min_length=1)
+    summary: str | None = Field(
+        default=None,
+        description="Optional human-readable summary used as the composite finding message.",
+    )
+
+
 Match = Annotated[
     FileSizeMatch
     | PathGlobMatch
     | ManifestFieldMatch
     | RegexInFilesMatch
-    | CommandInMakefileMatch,
+    | CommandInMakefileMatch
+    | CompositeMatch,
     Field(discriminator="type"),
 ]
+
+
+CompositeMatch.model_rebuild()
 
 
 class Rule(BaseModel):
@@ -248,6 +286,7 @@ __all__ = [
     "ManifestFieldMatch",
     "RegexInFilesMatch",
     "CommandInMakefileMatch",
+    "CompositeMatch",
     "Match",
     "Rule",
     "Insight",

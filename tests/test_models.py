@@ -11,6 +11,7 @@ from pydantic import ValidationError
 from agent_readiness_insights_protocol import (
     PROTOCOL_VERSION,
     RULES_VERSION,
+    CompositeMatch,
     EvaluateRequest,
     EvaluateResponse,
     FileSizeMatch,
@@ -18,7 +19,9 @@ from agent_readiness_insights_protocol import (
     HealthResponse,
     Insight,
     ManifestFieldMatch,
+    PathGlobMatch,
     Pillar,
+    RegexInFilesMatch,
     Rule,
     SearchHit,
     SearchRequest,
@@ -93,6 +96,86 @@ class TestRule:
         )
         assert isinstance(rule.match, FileSizeMatch)
         assert rule.match.threshold_lines == 200
+
+    def test_composite_match_and(self):
+        rule = Rule.model_validate(
+            {
+                "id": "env.parity_strict",
+                "pillar": "flow",
+                "title": "env reads but no .env.example",
+                "match": {
+                    "type": "composite",
+                    "op": "and",
+                    "summary": "env reads exist AND .env.example missing",
+                    "clauses": [
+                        {"type": "regex_in_files",
+                         "pattern": "os\\.environ",
+                         "file_globs": ["src/**/*.py"],
+                         "fire_when": "match"},
+                        {"type": "path_glob", "require_globs": [".env.example"]},
+                    ],
+                },
+            }
+        )
+        assert isinstance(rule.match, CompositeMatch)
+        assert rule.match.op == "and"
+        assert len(rule.match.clauses) == 2
+        assert isinstance(rule.match.clauses[0], RegexInFilesMatch)
+        assert isinstance(rule.match.clauses[1], PathGlobMatch)
+
+    def test_composite_match_not(self):
+        rule = Rule.model_validate(
+            {
+                "id": "agent_docs.absent",
+                "pillar": "cognitive_load",
+                "title": "Fires when AGENTS.md present (demo)",
+                "match": {
+                    "type": "composite",
+                    "op": "not",
+                    "clauses": [
+                        {"type": "path_glob", "require_globs": ["AGENTS.md"]},
+                    ],
+                },
+            }
+        )
+        assert isinstance(rule.match, CompositeMatch)
+        assert rule.match.op == "not"
+
+    def test_composite_match_nested(self):
+        # composite of composites should validate
+        rule = Rule.model_validate(
+            {
+                "id": "x.nested",
+                "pillar": "flow",
+                "title": "nested composite",
+                "match": {
+                    "type": "composite",
+                    "op": "or",
+                    "clauses": [
+                        {"type": "composite", "op": "and", "clauses": [
+                            {"type": "path_glob", "require_globs": ["A"]},
+                            {"type": "path_glob", "require_globs": ["B"]},
+                        ]},
+                        {"type": "path_glob", "require_globs": ["C"]},
+                    ],
+                },
+            }
+        )
+        assert isinstance(rule.match, CompositeMatch)
+        assert rule.match.op == "or"
+        assert isinstance(rule.match.clauses[0], CompositeMatch)
+        assert rule.match.clauses[0].op == "and"
+
+    def test_composite_match_empty_clauses_rejected(self):
+        with pytest.raises(ValidationError):
+            Rule.model_validate(
+                {
+                    "id": "bad.composite",
+                    "pillar": "flow",
+                    "title": "no clauses",
+                    "match": {"type": "composite", "op": "and", "clauses": []},
+                }
+            )
 
 
 class TestEvaluate:
