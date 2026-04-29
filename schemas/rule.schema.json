@@ -1,0 +1,295 @@
+{
+  "$defs": {
+    "CommandInMakefileMatch": {
+      "additionalProperties": false,
+      "properties": {
+        "fire_when": {
+          "default": "missing",
+          "enum": [
+            "missing",
+            "present"
+          ],
+          "title": "Fire When",
+          "type": "string"
+        },
+        "target": {
+          "description": "Makefile target name, e.g. 'test'.",
+          "title": "Target",
+          "type": "string"
+        },
+        "type": {
+          "const": "command_in_makefile",
+          "default": "command_in_makefile",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "CommandInMakefileMatch",
+      "type": "object"
+    },
+    "FileSizeMatch": {
+      "additionalProperties": false,
+      "properties": {
+        "exclude_globs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclude Globs",
+          "type": "array"
+        },
+        "threshold_bytes": {
+          "default": 51200,
+          "minimum": 1,
+          "title": "Threshold Bytes",
+          "type": "integer"
+        },
+        "threshold_lines": {
+          "default": 500,
+          "minimum": 1,
+          "title": "Threshold Lines",
+          "type": "integer"
+        },
+        "type": {
+          "const": "file_size",
+          "default": "file_size",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "FileSizeMatch",
+      "type": "object"
+    },
+    "ManifestFieldMatch": {
+      "additionalProperties": false,
+      "properties": {
+        "field_path": {
+          "description": "Dotted path to a required field, e.g. 'project.scripts'.",
+          "title": "Field Path",
+          "type": "string"
+        },
+        "fire_when": {
+          "default": "missing",
+          "enum": [
+            "missing",
+            "present"
+          ],
+          "title": "Fire When",
+          "type": "string"
+        },
+        "manifest": {
+          "description": "Manifest filename, e.g. 'pyproject.toml' or 'package.json'.",
+          "title": "Manifest",
+          "type": "string"
+        },
+        "type": {
+          "const": "manifest_field",
+          "default": "manifest_field",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "manifest",
+        "field_path"
+      ],
+      "title": "ManifestFieldMatch",
+      "type": "object"
+    },
+    "PathGlobMatch": {
+      "additionalProperties": false,
+      "properties": {
+        "forbid_globs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbid Globs",
+          "type": "array"
+        },
+        "require_globs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Require Globs",
+          "type": "array"
+        },
+        "type": {
+          "const": "path_glob",
+          "default": "path_glob",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "title": "PathGlobMatch",
+      "type": "object"
+    },
+    "Pillar": {
+      "description": "Mirrors agent_readiness.models.Pillar so the schema stays in sync.",
+      "enum": [
+        "cognitive_load",
+        "feedback",
+        "flow",
+        "safety"
+      ],
+      "title": "Pillar",
+      "type": "string"
+    },
+    "RegexInFilesMatch": {
+      "additionalProperties": false,
+      "properties": {
+        "case_insensitive": {
+          "default": false,
+          "title": "Case Insensitive",
+          "type": "boolean"
+        },
+        "file_globs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "File Globs",
+          "type": "array"
+        },
+        "fire_when": {
+          "default": "match",
+          "enum": [
+            "match",
+            "no_match"
+          ],
+          "title": "Fire When",
+          "type": "string"
+        },
+        "pattern": {
+          "description": "Python re-style regex.",
+          "title": "Pattern",
+          "type": "string"
+        },
+        "type": {
+          "const": "regex_in_files",
+          "default": "regex_in_files",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "title": "RegexInFilesMatch",
+      "type": "object"
+    },
+    "Severity": {
+      "enum": [
+        "info",
+        "warn",
+        "error"
+      ],
+      "title": "Severity",
+      "type": "string"
+    }
+  },
+  "$id": "https://github.com/harrydaihaolin/agent-readiness-insights-protocol/schemas/rule.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Declarative rule. Loaded from YAML; produced as JSON by `/rules`.\n\n`rules_version` is the schema version of THIS rule file; loaders\nrefuse rules whose rules_version is outside their supported range.",
+  "properties": {
+    "explanation": {
+      "default": "",
+      "description": "Why this rule predicts an agent failure mode.",
+      "title": "Explanation",
+      "type": "string"
+    },
+    "fix_hint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fix Hint"
+    },
+    "id": {
+      "description": "Stable identifier, e.g. 'repo_shape.large_files'.",
+      "title": "Id",
+      "type": "string"
+    },
+    "insight_query": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Free-text query the engine uses to retrieve related insights for findings of this rule.",
+      "title": "Insight Query"
+    },
+    "match": {
+      "discriminator": {
+        "mapping": {
+          "command_in_makefile": "#/$defs/CommandInMakefileMatch",
+          "file_size": "#/$defs/FileSizeMatch",
+          "manifest_field": "#/$defs/ManifestFieldMatch",
+          "path_glob": "#/$defs/PathGlobMatch",
+          "regex_in_files": "#/$defs/RegexInFilesMatch"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/FileSizeMatch"
+        },
+        {
+          "$ref": "#/$defs/PathGlobMatch"
+        },
+        {
+          "$ref": "#/$defs/ManifestFieldMatch"
+        },
+        {
+          "$ref": "#/$defs/RegexInFilesMatch"
+        },
+        {
+          "$ref": "#/$defs/CommandInMakefileMatch"
+        }
+      ],
+      "title": "Match"
+    },
+    "pillar": {
+      "$ref": "#/$defs/Pillar"
+    },
+    "rules_version": {
+      "default": 1,
+      "description": "Schema version this rule conforms to. Loaders gate on this.",
+      "title": "Rules Version",
+      "type": "integer"
+    },
+    "severity": {
+      "$ref": "#/$defs/Severity",
+      "default": "warn"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "weight": {
+      "default": 1.0,
+      "maximum": 10.0,
+      "minimum": 0.0,
+      "title": "Weight",
+      "type": "number"
+    }
+  },
+  "required": [
+    "id",
+    "pillar",
+    "title",
+    "match"
+  ],
+  "title": "Rule",
+  "type": "object"
+}

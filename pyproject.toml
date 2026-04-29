@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-readiness-insights-protocol"
+version = "0.1.0"
+description = "Shared schema, dataclasses, and version constants for the agent-readiness insights ecosystem."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "agent-readiness contributors" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+]
+keywords = ["ai", "agents", "agent-readiness", "rules", "schema"]
+dependencies = [
+    "pydantic>=2.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/harrydaihaolin/agent-readiness-insights-protocol"
+Repository = "https://github.com/harrydaihaolin/agent-readiness-insights-protocol"
+"Bug Tracker" = "https://github.com/harrydaihaolin/agent-readiness-insights-protocol/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "ruff>=0.4",
+    "build",
+    "mypy>=1.10",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_readiness_insights_protocol"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"schemas/rule.schema.json" = "agent_readiness_insights_protocol/schemas/rule.schema.json"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+ignore_missing_imports = true
