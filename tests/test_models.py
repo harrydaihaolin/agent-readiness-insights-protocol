@@ -21,6 +21,7 @@ from agent_readiness_insights_protocol import (
     ManifestFieldMatch,
     PathGlobMatch,
     Pillar,
+    PrivateMatch,
     RegexInFilesMatch,
     Rule,
     SearchHit,
@@ -176,6 +177,148 @@ class TestRule:
                     "match": {"type": "composite", "op": "and", "clauses": []},
                 }
             )
+
+
+class TestPrivateMatch:
+    """PrivateMatch is the catch-all for downstream-engine match types.
+
+    The protocol does not specify the *shape* of a PrivateMatch (every
+    field beyond `type` is engine-specific) so these tests focus on the
+    boundary: arbitrary types pass through, OSS type names are forbidden,
+    rules carrying a private match still validate end-to-end, and the
+    union routes correctly between typed and private variants.
+    """
+
+    def test_minimal_private_match(self):
+        m = PrivateMatch(type="git_log_query")
+        assert m.type == "git_log_query"
+
+    def test_private_match_accepts_arbitrary_extra_fields(self):
+        m = PrivateMatch.model_validate(
+            {
+                "type": "ast_complexity",
+                "languages": ["python", "typescript"],
+                "max_cc": 15,
+                "include_globs": ["src/**/*.py"],
+            }
+        )
+        assert m.type == "ast_complexity"
+        # extra="allow" stores unknown fields on __pydantic_extra__
+        assert m.model_extra == {
+            "languages": ["python", "typescript"],
+            "max_cc": 15,
+            "include_globs": ["src/**/*.py"],
+        }
+
+    @pytest.mark.parametrize(
+        "oss_type",
+        [
+            "file_size",
+            "path_glob",
+            "manifest_field",
+            "regex_in_files",
+            "command_in_makefile",
+            "composite",
+        ],
+    )
+    def test_private_match_rejects_oss_type_names(self, oss_type):
+        with pytest.raises(ValidationError) as exc:
+            PrivateMatch(type=oss_type)
+        assert "built-in OSS match type" in str(exc.value)
+
+    def test_rule_with_private_match_validates(self):
+        rule = Rule.model_validate(
+            {
+                "id": "git.has_history",
+                "pillar": "flow",
+                "title": "Repo has git history",
+                "match": {
+                    "type": "git_log_query",
+                    "command": "rev-list --count HEAD",
+                    "min_count": 5,
+                },
+            }
+        )
+        assert isinstance(rule.match, PrivateMatch)
+        assert rule.match.type == "git_log_query"
+        assert rule.match.model_extra["min_count"] == 5
+
+    def test_union_routes_oss_type_to_typed_variant_not_private(self):
+        # When type matches an OSS variant, pydantic should route to the
+        # typed model (FileSizeMatch), not the catch-all PrivateMatch.
+        rule = Rule.model_validate(
+            {
+                "id": "x",
+                "pillar": "cognitive_load",
+                "title": "x",
+                "match": {"type": "file_size", "threshold_lines": 100},
+            }
+        )
+        assert isinstance(rule.match, FileSizeMatch)
+        assert not isinstance(rule.match, PrivateMatch)
+
+    def test_malformed_oss_match_does_not_silently_fall_through(self):
+        # ``type: file_size`` with bad fields must fail loudly instead of
+        # being parsed as a PrivateMatch (which would silently lose the
+        # OSS type's structural validation).
+        with pytest.raises(ValidationError):
+            Rule.model_validate(
+                {
+                    "id": "x",
+                    "pillar": "cognitive_load",
+                    "title": "x",
+                    "match": {"type": "file_size", "threshold_lines": -1},
+                }
+            )
+
+    def test_composite_can_contain_private_clauses(self):
+        rule = Rule.model_validate(
+            {
+                "id": "complex.signal",
+                "pillar": "safety",
+                "title": "code complexity AND high churn",
+                "match": {
+                    "type": "composite",
+                    "op": "and",
+                    "summary": "complex AND churned",
+                    "clauses": [
+                        {
+                            "type": "ast_complexity",
+                            "max_cc": 15,
+                            "languages": ["python"],
+                        },
+                        {
+                            "type": "git_log_query",
+                            "min_commits_touching_file": 10,
+                        },
+                    ],
+                },
+            }
+        )
+        assert isinstance(rule.match, CompositeMatch)
+        assert len(rule.match.clauses) == 2
+        assert all(isinstance(c, PrivateMatch) for c in rule.match.clauses)
+        assert rule.match.clauses[0].type == "ast_complexity"
+        assert rule.match.clauses[1].type == "git_log_query"
+
+    def test_private_match_serialization_roundtrip(self):
+        rule = Rule(
+            id="git.has_history",
+            pillar=Pillar.FLOW,
+            title="Repo has git history",
+            match=PrivateMatch.model_validate(
+                {
+                    "type": "git_log_query",
+                    "command": "rev-list --count HEAD",
+                    "min_count": 5,
+                }
+            ),
+        )
+        s = to_json(rule)
+        restored = from_json(Rule, s)
+        assert isinstance(restored.match, PrivateMatch)
+        assert restored.match.type == "git_log_query"
+        assert restored.match.model_extra["min_count"] == 5
 
 
 class TestEvaluate:

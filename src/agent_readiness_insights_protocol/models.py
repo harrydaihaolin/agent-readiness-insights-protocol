@@ -10,9 +10,23 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .version import PROTOCOL_VERSION, RULES_VERSION
+
+
+# Frozen at module import: every match type the OSS reference evaluator
+# recognises. ``PrivateMatch.type`` is forbidden from taking any of these
+# values so a malformed ``file_size`` rule cannot silently fall through to
+# the catch-all PrivateMatch branch.
+_OSS_MATCH_TYPES: frozenset[str] = frozenset({
+    "file_size",
+    "path_glob",
+    "manifest_field",
+    "regex_in_files",
+    "command_in_makefile",
+    "composite",
+})
 
 # ---------------------------------------------------------------------------
 # Shared enums
@@ -114,6 +128,8 @@ class CompositeMatch(BaseModel):
 
     Nested ``CompositeMatch`` clauses are allowed up to a small depth
     (engines should cap recursion at 4 to keep evaluation predictable).
+    PrivateMatch clauses are also accepted so composite expressions can
+    incorporate downstream-engine analyses.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -122,7 +138,8 @@ class CompositeMatch(BaseModel):
     op: Literal["and", "or", "not"]
     clauses: list[
         "FileSizeMatch | PathGlobMatch | ManifestFieldMatch | "
-        "RegexInFilesMatch | CommandInMakefileMatch | CompositeMatch"
+        "RegexInFilesMatch | CommandInMakefileMatch | CompositeMatch | "
+        "PrivateMatch"
     ] = Field(default_factory=list, min_length=1)
     summary: str | None = Field(
         default=None,
@@ -130,15 +147,55 @@ class CompositeMatch(BaseModel):
     )
 
 
-Match = Annotated[
+class PrivateMatch(BaseModel):
+    """Catch-all for non-OSS (private) match types.
+
+    Downstream engines (e.g. ``agent-readiness-pro`` or the closed
+    insights engine) extend the rules pack with bespoke analyses such as
+    ``git_log_query``, ``ast_complexity``, or ``regex_secret_scan``.
+    These are registered in the engine via
+    ``register_private_matcher(type_name, fn)`` and are referenced from
+    YAML rules as ``match.type: <name>``.
+
+    The protocol does not specify the *shape* of a PrivateMatch — every
+    field beyond ``type`` is engine-specific — so this model accepts
+    arbitrary extra fields. ``type`` is constrained only to forbid the
+    six OSS match-type names, preventing a malformed OSS rule from
+    silently being parsed as a private one. Engines that do not know
+    a given private type produce a ``not_measured`` finding rather
+    than crashing.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str = Field(description="Engine-specific match type name; must NOT collide with an OSS type.")
+
+    @field_validator("type")
+    @classmethod
+    def _not_oss_type(cls, v: str) -> str:
+        if v in _OSS_MATCH_TYPES:
+            raise ValueError(
+                f"{v!r} is a built-in OSS match type; private match types "
+                "must use a distinct name. If you intended to use the OSS "
+                "type, fix the rule's structural fields instead of routing "
+                "through PrivateMatch."
+            )
+        return v
+
+
+# Plain Union (no Field(discriminator=...) annotation) so pydantic 2's
+# "smart" union mode can route OSS-typed dicts to the typed variants and
+# fall through to PrivateMatch only for unknown ``type`` values.
+# PrivateMatch *must* be last so the typed variants are tried first.
+Match = (
     FileSizeMatch
     | PathGlobMatch
     | ManifestFieldMatch
     | RegexInFilesMatch
     | CommandInMakefileMatch
-    | CompositeMatch,
-    Field(discriminator="type"),
-]
+    | CompositeMatch
+    | PrivateMatch
+)
 
 
 CompositeMatch.model_rebuild()
@@ -287,6 +344,7 @@ __all__ = [
     "RegexInFilesMatch",
     "CommandInMakefileMatch",
     "CompositeMatch",
+    "PrivateMatch",
     "Match",
     "Rule",
     "Insight",
