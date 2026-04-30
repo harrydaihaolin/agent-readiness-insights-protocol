@@ -117,18 +117,36 @@ class CommandInMakefileMatch(BaseModel):
 class CompositeMatch(BaseModel):
     """Boolean composition over OSS leaf match clauses.
 
-    Semantics:
-    - ``and``: composite fires when every clause produces ≥1 finding.
-      Emits one composite finding summarising the conjunction.
-    - ``or``: composite fires when any clause produces ≥1 finding.
-      Emits one finding per clause that fired (preserves details).
-    - ``not``: composite fires when the (single) clause produces 0
-      findings. Used to express "X is missing".
+    Each leaf clause is "satisfied" when its matcher returns no
+    findings (the required paths exist, the required regex matches,
+    the manifest field is set, …). Composite ops are defined over
+    that per-clause satisfied / unsatisfied bit:
+
+    - ``and``: composite is satisfied iff every clause is satisfied.
+      When any clause is unsatisfied, emits one composite finding
+      summarising which conjunct(s) failed (callers typically use
+      ``summary`` to carry the human-readable conjunction text).
+    - ``or``: composite is satisfied iff at least one clause is
+      satisfied. When ALL clauses are unsatisfied, emits one finding
+      per failing clause so the user sees each unmet alternative,
+      prefixed by ``summary`` (if set) so the reporter can label the
+      all-fail case explicitly.
+    - ``not``: composite is satisfied iff the (single) clause is
+      unsatisfied. Used to express "X is missing"; emits one finding
+      naming what ``X`` was when the inner clause was satisfied.
+
+    Note on ``or``: an earlier revision of this docstring described
+    ``or`` as "fires when any clause produces ≥1 finding" (i.e.
+    OR-of-failures). That wording was inverted relative to how every
+    rule in the agent-readiness rules pack uses ``or``  — "any of
+    these alternatives is acceptable" — and was producing 6+
+    spurious findings per scanned repo. The semantic above
+    (OR-of-satisfactions) is the corrected, canonical contract.
 
     Nested ``CompositeMatch`` clauses are allowed up to a small depth
     (engines should cap recursion at 4 to keep evaluation predictable).
-    PrivateMatch clauses are also accepted so composite expressions can
-    incorporate downstream-engine analyses.
+    ``PrivateMatch`` clauses are also accepted so composite expressions
+    can incorporate downstream-engine analyses.
     """
 
     model_config = ConfigDict(extra="forbid")
