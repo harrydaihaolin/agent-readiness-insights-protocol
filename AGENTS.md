@@ -13,6 +13,10 @@ Conventions for AI coding agents working in this repository.
 The package is pure data + dataclasses. No CLI, no I/O, no network calls.
 Everything is JSON-serialisable via pydantic.
 
+## CI and the feedback loop
+
+**CI is part of the feedback loop.** After you push or update a PR, **monitor GitHub Actions / workflow runs and check results**. When **CI fails**, read the logs, **fix the root cause**, and push follow-up commits. Do not stop while checks are red or ignore failing workflows.
+
 ## Source of truth
 
 - `src/agent_readiness_insights_protocol/version.py` — `PROTOCOL_VERSION`

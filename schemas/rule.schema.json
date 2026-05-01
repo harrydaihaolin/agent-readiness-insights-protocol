@@ -1,5 +1,31 @@
 {
   "$defs": {
+    "AppendToFileFix": {
+      "additionalProperties": false,
+      "description": "Append content to an existing file (or create if absent).",
+      "properties": {
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "kind": {
+          "const": "append_to_file",
+          "default": "append_to_file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "content"
+      ],
+      "title": "AppendToFileFix",
+      "type": "object"
+    },
     "CommandInMakefileMatch": {
       "additionalProperties": false,
       "properties": {
@@ -99,6 +125,34 @@
       "title": "CompositeMatch",
       "type": "object"
     },
+    "CreateFileFix": {
+      "additionalProperties": false,
+      "description": "Materialise a brand-new file with the given contents.\n\nDiffed against an empty buffer so dashboards render the whole file\nas an added hunk.",
+      "properties": {
+        "content": {
+          "description": "Full file contents to create.",
+          "title": "Content",
+          "type": "string"
+        },
+        "kind": {
+          "const": "create_file",
+          "default": "create_file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "description": "Repo-relative path of the new file.",
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "content"
+      ],
+      "title": "CreateFileFix",
+      "type": "object"
+    },
     "FileSizeMatch": {
       "additionalProperties": false,
       "properties": {
@@ -129,6 +183,38 @@
         }
       },
       "title": "FileSizeMatch",
+      "type": "object"
+    },
+    "InsertAfterFix": {
+      "additionalProperties": false,
+      "description": "Insert content immediately after the first line matching ``after_pattern``.",
+      "properties": {
+        "after_pattern": {
+          "description": "Python re-style regex matched against the file with re.MULTILINE.",
+          "title": "After Pattern",
+          "type": "string"
+        },
+        "content": {
+          "title": "Content",
+          "type": "string"
+        },
+        "kind": {
+          "const": "insert_after",
+          "default": "insert_after",
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "after_pattern",
+        "content"
+      ],
+      "title": "InsertAfterFix",
       "type": "object"
     },
     "ManifestFieldMatch": {
@@ -295,6 +381,25 @@
       ],
       "default": null,
       "title": "Fix Hint"
+    },
+    "fix_template": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CreateFileFix"
+        },
+        {
+          "$ref": "#/$defs/AppendToFileFix"
+        },
+        {
+          "$ref": "#/$defs/InsertAfterFix"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Optional deterministic fix recipe. The engine renders this into a unified diff at scan time and attaches it to each finding so dashboards can offer a one-click suggested patch.",
+      "title": "Fix Template"
     },
     "id": {
       "description": "Stable identifier, e.g. 'repo_shape.large_files'.",

@@ -11,12 +11,15 @@ from pydantic import ValidationError
 from agent_readiness_insights_protocol import (
     PROTOCOL_VERSION,
     RULES_VERSION,
+    AppendToFileFix,
     CompositeMatch,
+    CreateFileFix,
     EvaluateRequest,
     EvaluateResponse,
     FileSizeMatch,
     Finding,
     HealthResponse,
+    InsertAfterFix,
     Insight,
     ManifestFieldMatch,
     PathGlobMatch,
@@ -352,6 +355,151 @@ class TestEvaluate:
         s = to_json(resp)
         restored = from_json(EvaluateResponse, s)
         assert restored.findings[0].related_insights[0].score == 0.87
+
+
+class TestFixTemplate:
+    """``Rule.fix_template`` is the optional deterministic-patch recipe.
+
+    Three discriminated kinds (``create_file``, ``append_to_file``,
+    ``insert_after``) cover the common deterministic fixes; the engine
+    materialises them into a unified diff at scan time. These tests
+    exercise the *protocol surface* only — not patch generation.
+    """
+
+    def test_rule_without_fix_template_is_valid(self):
+        rule = Rule(
+            id="x",
+            pillar=Pillar.FLOW,
+            title="x",
+            match=FileSizeMatch(),
+        )
+        assert rule.fix_template is None
+
+    def test_rule_with_create_file_fix_via_dict(self):
+        rule = Rule.model_validate(
+            {
+                "id": "x",
+                "pillar": "feedback",
+                "title": "x",
+                "match": {"type": "path_glob", "require_globs": ["AGENTS.md"]},
+                "fix_template": {
+                    "kind": "create_file",
+                    "path": "AGENTS.md",
+                    "content": "# Agent guide\n",
+                },
+            }
+        )
+        assert isinstance(rule.fix_template, CreateFileFix)
+        assert rule.fix_template.path == "AGENTS.md"
+
+    def test_rule_with_append_to_file_fix(self):
+        ft = AppendToFileFix(path=".gitignore", content=".env\n")
+        rule = Rule(
+            id="x",
+            pillar=Pillar.SAFETY,
+            title="x",
+            match=FileSizeMatch(),
+            fix_template=ft,
+        )
+        s = to_json(rule)
+        restored = from_json(Rule, s)
+        assert isinstance(restored.fix_template, AppendToFileFix)
+        assert restored.fix_template.content == ".env\n"
+
+    def test_rule_with_insert_after_fix(self):
+        ft = InsertAfterFix(
+            path="Makefile",
+            after_pattern=r"^all:",
+            content="\ntest:\n\tpytest\n",
+        )
+        rule = Rule(
+            id="x",
+            pillar=Pillar.FEEDBACK,
+            title="x",
+            match=FileSizeMatch(),
+            fix_template=ft,
+        )
+        assert isinstance(rule.fix_template, InsertAfterFix)
+        assert rule.fix_template.after_pattern == r"^all:"
+
+    def test_fix_template_unknown_kind_rejected(self):
+        with pytest.raises(ValidationError):
+            Rule.model_validate(
+                {
+                    "id": "x",
+                    "pillar": "flow",
+                    "title": "x",
+                    "match": {"type": "path_glob", "require_globs": ["X"]},
+                    "fix_template": {
+                        "kind": "delete_file",  # not allowed
+                        "path": "X",
+                    },
+                }
+            )
+
+    def test_fix_template_extra_fields_rejected(self):
+        with pytest.raises(ValidationError):
+            CreateFileFix(path="x", content="y", extra_field="boom")
+
+
+class TestFindingCodeContext:
+    """Optional snippet/suggested_patch fields surface code-level context to
+    consumers (dashboards, code-review UX). These are *additive* — older
+    findings without the fields must still validate.
+    """
+
+    def test_finding_without_code_context_is_valid(self):
+        finding = Finding(
+            rule_id="x",
+            pillar=Pillar.FLOW,
+            severity=Severity.WARN,
+            message="generic finding",
+        )
+        assert finding.snippet is None
+        assert finding.suggested_patch is None
+
+    def test_finding_with_snippet_only(self):
+        finding = Finding(
+            rule_id="x",
+            pillar=Pillar.FLOW,
+            severity=Severity.WARN,
+            message="line offending",
+            file="src/foo.py",
+            line=42,
+            snippet="    bad_code()\n",
+        )
+        assert finding.snippet == "    bad_code()\n"
+        assert finding.suggested_patch is None
+
+    def test_finding_with_suggested_patch(self):
+        diff = (
+            "--- a/Makefile\n"
+            "+++ b/Makefile\n"
+            "@@ -1,2 +1,5 @@\n"
+            " all:\n"
+            "+\n"
+            "+test:\n"
+            "+\tpytest\n"
+        )
+        finding = Finding(
+            rule_id="feedback.test_command",
+            pillar=Pillar.FEEDBACK,
+            severity=Severity.WARN,
+            message="No `test` target in Makefile",
+            file="Makefile",
+            suggested_patch=diff,
+        )
+        assert finding.suggested_patch.startswith("--- a/Makefile")
+
+    def test_finding_extra_fields_still_rejected(self):
+        with pytest.raises(ValidationError):
+            Finding(
+                rule_id="x",
+                pillar=Pillar.FLOW,
+                severity=Severity.WARN,
+                message="x",
+                unknown_extra=True,
+            )
 
 
 class TestSearch:

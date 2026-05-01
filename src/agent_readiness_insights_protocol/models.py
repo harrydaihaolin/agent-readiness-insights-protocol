@@ -218,6 +218,47 @@ Match = (
 CompositeMatch.model_rebuild()
 
 
+class CreateFileFix(BaseModel):
+    """Materialise a brand-new file with the given contents.
+
+    Diffed against an empty buffer so dashboards render the whole file
+    as an added hunk.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["create_file"] = "create_file"
+    path: str = Field(description="Repo-relative path of the new file.")
+    content: str = Field(description="Full file contents to create.")
+
+
+class AppendToFileFix(BaseModel):
+    """Append content to an existing file (or create if absent)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["append_to_file"] = "append_to_file"
+    path: str
+    content: str
+
+
+class InsertAfterFix(BaseModel):
+    """Insert content immediately after the first line matching ``after_pattern``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["insert_after"] = "insert_after"
+    path: str
+    after_pattern: str = Field(
+        description="Python re-style regex matched against the file with re.MULTILINE."
+    )
+    content: str
+
+
+# Discriminated union; pydantic v2 routes by ``kind``.
+FixTemplate = CreateFileFix | AppendToFileFix | InsertAfterFix
+
+
 class Rule(BaseModel):
     """Declarative rule. Loaded from YAML; produced as JSON by `/rules`.
 
@@ -239,6 +280,14 @@ class Rule(BaseModel):
     explanation: str = Field(default="", description="Why this rule predicts an agent failure mode.")
     match: Match
     fix_hint: str | None = None
+    fix_template: FixTemplate | None = Field(
+        default=None,
+        description=(
+            "Optional deterministic fix recipe. The engine renders this "
+            "into a unified diff at scan time and attaches it to each "
+            "finding so dashboards can offer a one-click suggested patch."
+        ),
+    )
     insight_query: str | None = Field(
         default=None,
         description="Free-text query the engine uses to retrieve related insights for findings of this rule.",
@@ -272,6 +321,21 @@ class Finding(BaseModel):
     line: int | None = None
     fix_hint: str | None = None
     related_insights: list[Insight] = Field(default_factory=list)
+    snippet: str | None = Field(
+        default=None,
+        description=(
+            "Short excerpt of the offending source (typically the matched line "
+            "with a couple of lines of context). Always plain text, never HTML."
+        ),
+    )
+    suggested_patch: str | None = Field(
+        default=None,
+        description=(
+            "Unified-diff hunk representing a suggested fix. Optional; only "
+            "rules with a deterministic fix template emit this. Consumers may "
+            "render this as a code review-style diff."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -363,6 +427,10 @@ __all__ = [
     "CompositeMatch",
     "PrivateMatch",
     "Match",
+    "CreateFileFix",
+    "AppendToFileFix",
+    "InsertAfterFix",
+    "FixTemplate",
     "Rule",
     "Insight",
     "Finding",

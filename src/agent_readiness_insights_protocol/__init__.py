@@ -7,13 +7,17 @@ consumers do `from agent_readiness_insights_protocol import Rule, ...`.
 from __future__ import annotations
 
 from .models import (
+    AppendToFileFix,
     CommandInMakefileMatch,
     CompositeMatch,
+    CreateFileFix,
     EvaluateRequest,
     EvaluateResponse,
     FileSizeMatch,
     Finding,
+    FixTemplate,
     HealthResponse,
+    InsertAfterFix,
     Insight,
     ManifestFieldMatch,
     Match,
@@ -48,6 +52,10 @@ __all__ = [
     "CompositeMatch",
     "PrivateMatch",
     "Match",
+    "CreateFileFix",
+    "AppendToFileFix",
+    "InsertAfterFix",
+    "FixTemplate",
     "Rule",
     "Insight",
     "Finding",
