@@ -7,40 +7,52 @@ consumers do `from agent_readiness_insights_protocol import Rule, ...`.
 from __future__ import annotations
 
 from .models import (
+    Action,
+    AppendToFileAction,
     AppendToFileFix,
     CommandInMakefileMatch,
     CompositeMatch,
+    ContextProbe,
+    ContextProbeKind,
+    CreateFileAction,
     CreateFileFix,
+    EditGitignoreAction,
     EvaluateRequest,
     EvaluateResponse,
     FileSizeMatch,
     Finding,
     FixTemplate,
     HealthResponse,
+    InsertAfterAction,
     InsertAfterFix,
     Insight,
     ManifestFieldMatch,
     Match,
     MatchType,
+    ModifyManifestFieldAction,
     PathGlobMatch,
     Pillar,
+    Precondition,
     PrivateMatch,
     RegexInFilesMatch,
     Rule,
+    RunCommandAction,
     SearchHit,
     SearchRequest,
     SearchResponse,
     Severity,
+    VerifyStep,
 )
 from .serialization import from_json, to_json
-from .version import PROTOCOL_VERSION, RULES_VERSION
+from .version import PROTOCOL_VERSION, RULES_VERSION, RULES_VERSION_MIN_SUPPORTED
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",
     "PROTOCOL_VERSION",
     "RULES_VERSION",
+    "RULES_VERSION_MIN_SUPPORTED",
     "Pillar",
     "Severity",
     "MatchType",
@@ -56,6 +68,17 @@ __all__ = [
     "AppendToFileFix",
     "InsertAfterFix",
     "FixTemplate",
+    "ContextProbeKind",
+    "ContextProbe",
+    "Precondition",
+    "CreateFileAction",
+    "AppendToFileAction",
+    "InsertAfterAction",
+    "EditGitignoreAction",
+    "ModifyManifestFieldAction",
+    "RunCommandAction",
+    "Action",
+    "VerifyStep",
     "Rule",
     "Insight",
     "Finding",
