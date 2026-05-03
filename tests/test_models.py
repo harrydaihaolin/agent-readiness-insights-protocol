@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
+
 from agent_readiness_insights_protocol import (
     PROTOCOL_VERSION,
     RULES_VERSION,
@@ -43,7 +45,6 @@ from agent_readiness_insights_protocol import (
     from_json,
     to_json,
 )
-from pydantic import ValidationError
 
 
 class TestVersionConstants:
