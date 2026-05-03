@@ -1,5 +1,45 @@
 {
   "$defs": {
+    "AppendToFileAction": {
+      "additionalProperties": false,
+      "description": "Append content to an existing file (or create if absent).",
+      "properties": {
+        "context_probe": {
+          "items": {
+            "$ref": "#/$defs/ContextProbe"
+          },
+          "title": "Context Probe",
+          "type": "array"
+        },
+        "kind": {
+          "const": "append_to_file",
+          "default": "append_to_file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "$ref": "#/$defs/Precondition"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        },
+        "template": {
+          "title": "Template",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "template"
+      ],
+      "title": "AppendToFileAction",
+      "type": "object"
+    },
     "AppendToFileFix": {
       "additionalProperties": false,
       "description": "Append content to an existing file (or create if absent).",
@@ -125,6 +165,77 @@
       "title": "CompositeMatch",
       "type": "object"
     },
+    "ContextProbe": {
+      "additionalProperties": false,
+      "description": "A single probe declared on an action.\n\n``detect`` names the signal to capture from the repo; the engine\nbinds the result to ``{<detect>}`` placeholders inside\n``action.template``. Probes that the engine cannot resolve emit\nan empty string so templates degrade gracefully.",
+      "properties": {
+        "detect": {
+          "$ref": "#/$defs/ContextProbeKind"
+        }
+      },
+      "required": [
+        "detect"
+      ],
+      "title": "ContextProbe",
+      "type": "object"
+    },
+    "ContextProbeKind": {
+      "description": "Probes the engine runs at scan time to populate ``{variable}``s\ninside an ``action.template``. Each kind is deterministic \u2014 no LLM\nin the action path.",
+      "enum": [
+        "primary_language",
+        "primary_manifest",
+        "package_manager",
+        "makefile_targets",
+        "existing_entry_points",
+        "test_directory",
+        "ci_present",
+        "lockfile_present"
+      ],
+      "title": "ContextProbeKind",
+      "type": "string"
+    },
+    "CreateFileAction": {
+      "additionalProperties": false,
+      "description": "Materialise a brand-new file with the given content / template.",
+      "properties": {
+        "context_probe": {
+          "items": {
+            "$ref": "#/$defs/ContextProbe"
+          },
+          "title": "Context Probe",
+          "type": "array"
+        },
+        "kind": {
+          "const": "create_file",
+          "default": "create_file",
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "description": "Repo-relative path of the new file.",
+          "title": "Path",
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "$ref": "#/$defs/Precondition"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        },
+        "template": {
+          "description": "Full file contents to create. May contain ``{variable}`` placeholders populated by ``context_probe`` at scan time.",
+          "title": "Template",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "template"
+      ],
+      "title": "CreateFileAction",
+      "type": "object"
+    },
     "CreateFileFix": {
       "additionalProperties": false,
       "description": "Materialise a brand-new file with the given contents.\n\nDiffed against an empty buffer so dashboards render the whole file\nas an added hunk.",
@@ -151,6 +262,43 @@
         "content"
       ],
       "title": "CreateFileFix",
+      "type": "object"
+    },
+    "EditGitignoreAction": {
+      "additionalProperties": false,
+      "description": "Append entries to ``.gitignore`` (creating it if absent).",
+      "properties": {
+        "context_probe": {
+          "items": {
+            "$ref": "#/$defs/ContextProbe"
+          },
+          "title": "Context Probe",
+          "type": "array"
+        },
+        "entries": {
+          "description": "Glob patterns to append, one per line.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Entries",
+          "type": "array"
+        },
+        "kind": {
+          "const": "edit_gitignore",
+          "default": "edit_gitignore",
+          "title": "Kind",
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "$ref": "#/$defs/Precondition"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        }
+      },
+      "title": "EditGitignoreAction",
       "type": "object"
     },
     "FileSizeMatch": {
@@ -183,6 +331,52 @@
         }
       },
       "title": "FileSizeMatch",
+      "type": "object"
+    },
+    "InsertAfterAction": {
+      "additionalProperties": false,
+      "description": "Insert content immediately after the first line matching ``after_pattern``.",
+      "properties": {
+        "after_pattern": {
+          "description": "Python re-style regex matched against the file with re.MULTILINE.",
+          "title": "After Pattern",
+          "type": "string"
+        },
+        "context_probe": {
+          "items": {
+            "$ref": "#/$defs/ContextProbe"
+          },
+          "title": "Context Probe",
+          "type": "array"
+        },
+        "kind": {
+          "const": "insert_after",
+          "default": "insert_after",
+          "title": "Kind",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "$ref": "#/$defs/Precondition"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        },
+        "template": {
+          "title": "Template",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "after_pattern",
+        "template"
+      ],
+      "title": "InsertAfterAction",
       "type": "object"
     },
     "InsertAfterFix": {
@@ -253,6 +447,54 @@
       "title": "ManifestFieldMatch",
       "type": "object"
     },
+    "ModifyManifestFieldAction": {
+      "additionalProperties": false,
+      "description": "Set / merge a field inside a structured manifest (TOML/JSON/YAML).\n\n``value`` is a string the engine inserts under ``field_path``. For\nJSON / YAML the engine parses-edit-rewrites; for TOML it appends a\nfresh table if the field is missing.",
+      "properties": {
+        "context_probe": {
+          "items": {
+            "$ref": "#/$defs/ContextProbe"
+          },
+          "title": "Context Probe",
+          "type": "array"
+        },
+        "field_path": {
+          "description": "Dotted path to the target field.",
+          "title": "Field Path",
+          "type": "string"
+        },
+        "kind": {
+          "const": "modify_manifest_field",
+          "default": "modify_manifest_field",
+          "title": "Kind",
+          "type": "string"
+        },
+        "manifest": {
+          "description": "Manifest filename, e.g. 'pyproject.toml'.",
+          "title": "Manifest",
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "$ref": "#/$defs/Precondition"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        },
+        "value": {
+          "description": "Literal value to set (string-encoded).",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "manifest",
+        "field_path",
+        "value"
+      ],
+      "title": "ModifyManifestFieldAction",
+      "type": "object"
+    },
     "PathGlobMatch": {
       "additionalProperties": false,
       "properties": {
@@ -290,6 +532,66 @@
       ],
       "title": "Pillar",
       "type": "string"
+    },
+    "Precondition": {
+      "additionalProperties": false,
+      "description": "A simple structural precondition the engine evaluates before\nemitting the action.\n\nAll non-null fields must hold for the action to fire. Omit fields\nthat are not relevant. Used by ``rules_pack >= 2`` to keep actions\ntargeted (e.g. don't suggest editing a Makefile when none exists).",
+      "properties": {
+        "exists": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Repo-relative path that must exist for this action to fire.",
+          "title": "Exists"
+        },
+        "has_makefile_target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required existing Makefile target name.",
+          "title": "Has Makefile Target"
+        },
+        "manifest_language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required primary language (e.g. 'python', 'node', 'go').",
+          "title": "Manifest Language"
+        },
+        "not_exists": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Repo-relative path that must NOT exist for this action to fire.",
+          "title": "Not Exists"
+        }
+      },
+      "title": "Precondition",
+      "type": "object"
     },
     "PrivateMatch": {
       "additionalProperties": true,
@@ -349,6 +651,47 @@
       "title": "RegexInFilesMatch",
       "type": "object"
     },
+    "RunCommandAction": {
+      "additionalProperties": false,
+      "description": "Run a shell command in the repo root.\n\nUsed for actions that aren't a single file edit (initialising a\ndevcontainer, scaffolding a CI workflow with `gh extension`, etc.).\nThe command MUST be deterministic and offline-safe; agents may\nrefuse to execute network calls.",
+      "properties": {
+        "command": {
+          "description": "Shell command to run from the repo root.",
+          "title": "Command",
+          "type": "string"
+        },
+        "context_probe": {
+          "items": {
+            "$ref": "#/$defs/ContextProbe"
+          },
+          "title": "Context Probe",
+          "type": "array"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "kind": {
+          "const": "run_command",
+          "default": "run_command",
+          "title": "Kind",
+          "type": "string"
+        },
+        "preconditions": {
+          "items": {
+            "$ref": "#/$defs/Precondition"
+          },
+          "title": "Preconditions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "title": "RunCommandAction",
+      "type": "object"
+    },
     "Severity": {
       "enum": [
         "info",
@@ -357,13 +700,74 @@
       ],
       "title": "Severity",
       "type": "string"
+    },
+    "VerifyStep": {
+      "additionalProperties": false,
+      "description": "The verification command an agent runs after applying an action.\n\nMust exit 0 when the rule would no longer fire on the modified\nrepo. Should be deterministic, offline (network is forbidden), and\nfast (\u2264 ``timeout_seconds``).",
+      "properties": {
+        "command": {
+          "description": "Shell command; exit 0 = fix landed, non-zero = still missing.",
+          "title": "Command",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "offline": {
+          "default": true,
+          "title": "Offline",
+          "type": "boolean"
+        },
+        "timeout_seconds": {
+          "default": 15,
+          "maximum": 300,
+          "minimum": 1,
+          "title": "Timeout Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "title": "VerifyStep",
+      "type": "object"
     }
   },
   "$id": "https://github.com/harrydaihaolin/agent-readiness-insights-protocol/schemas/rule.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Declarative rule. Loaded from YAML; produced as JSON by `/rules`.\n\n`rules_version` is the schema version of THIS rule file; loaders\nrefuse rules whose rules_version is outside their supported range.",
+  "description": "Declarative rule. Loaded from YAML; produced as JSON by `/rules`.\n\n`rules_version` is the schema version of THIS rule file; loaders\nrefuse rules whose rules_version is outside their supported range.\n\nFor ``rules_version >= 2`` the rule MUST carry an ``action`` block\nand a ``verify`` step (the deterministic action contract). Older\nv1 rules are still accepted during the transition window; their\nlegacy ``fix_template`` field is automatically mapped to ``action``\nby the engine when emitting findings.",
   "properties": {
+    "action": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CreateFileAction"
+        },
+        {
+          "$ref": "#/$defs/AppendToFileAction"
+        },
+        {
+          "$ref": "#/$defs/InsertAfterAction"
+        },
+        {
+          "$ref": "#/$defs/EditGitignoreAction"
+        },
+        {
+          "$ref": "#/$defs/ModifyManifestFieldAction"
+        },
+        {
+          "$ref": "#/$defs/RunCommandAction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Structured deterministic action \u2014 the agent's instruction for what to change, where, and how. Required for ``rules_version >= 2``. Carries optional ``preconditions`` and ``context_probe`` blocks so the engine can gate emission and substitute repo signals into ``{variable}`` placeholders.",
+      "title": "Action"
+    },
     "explanation": {
       "default": "",
       "description": "Why this rule predicts an agent failure mode.",
@@ -398,7 +802,7 @@
         }
       ],
       "default": null,
-      "description": "Optional deterministic fix recipe. The engine renders this into a unified diff at scan time and attaches it to each finding so dashboards can offer a one-click suggested patch.",
+      "description": "Deprecated as of rules_version 2 \u2014 use ``action`` instead. Retained for backward compatibility; engines auto-map it onto the matching ``Action`` model when surfacing findings.",
       "title": "Fix Template"
     },
     "id": {
@@ -450,7 +854,7 @@
     },
     "rules_version": {
       "default": 1,
-      "description": "Schema version this rule conforms to. Loaders gate on this.",
+      "description": "Schema version this rule conforms to. Defaults to the lowest supported version so legacy YAMLs without an explicit ``rules_version:`` line still validate. New rules should set this to RULES_VERSION (the latest) and supply an ``action`` + ``verify`` pair. Loaders gate on this.",
       "title": "Rules Version",
       "type": "integer"
     },
@@ -461,6 +865,18 @@
     "title": {
       "title": "Title",
       "type": "string"
+    },
+    "verify": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VerifyStep"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Verification step the agent runs after applying ``action`` to confirm the fix landed. Required for ``rules_version >= 2``."
     },
     "weight": {
       "default": 1.0,

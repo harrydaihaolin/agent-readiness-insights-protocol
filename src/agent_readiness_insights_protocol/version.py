@@ -21,7 +21,18 @@ reports both so a client can decide how to behave on mismatch.
 
 from __future__ import annotations
 
-PROTOCOL_VERSION: int = 1
-RULES_VERSION: int = 1
+PROTOCOL_VERSION: int = 2
+RULES_VERSION: int = 2
 
-__all__ = ["PROTOCOL_VERSION", "RULES_VERSION"]
+# Engines accept rules with this version OR lower during the v1 -> v2
+# transition window so downstream consumers don't break the day v2 ships.
+# v1 rules are required to carry a fix_hint; v2 rules MUST carry the
+# structured action + verify blocks. Removed in a future v3 cleanup once
+# the rules pack is fully migrated.
+RULES_VERSION_MIN_SUPPORTED: int = 1
+
+__all__ = [
+    "PROTOCOL_VERSION",
+    "RULES_VERSION",
+    "RULES_VERSION_MIN_SUPPORTED",
+]

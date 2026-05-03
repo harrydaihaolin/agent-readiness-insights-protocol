@@ -6,42 +6,56 @@ import json
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
-
 from agent_readiness_insights_protocol import (
     PROTOCOL_VERSION,
     RULES_VERSION,
+    RULES_VERSION_MIN_SUPPORTED,
+    AppendToFileAction,
     AppendToFileFix,
     CompositeMatch,
+    ContextProbe,
+    ContextProbeKind,
+    CreateFileAction,
     CreateFileFix,
+    EditGitignoreAction,
     EvaluateRequest,
     EvaluateResponse,
     FileSizeMatch,
     Finding,
     HealthResponse,
+    InsertAfterAction,
     InsertAfterFix,
     Insight,
     ManifestFieldMatch,
+    ModifyManifestFieldAction,
     PathGlobMatch,
     Pillar,
+    Precondition,
     PrivateMatch,
     RegexInFilesMatch,
     Rule,
+    RunCommandAction,
     SearchHit,
     SearchRequest,
     SearchResponse,
     Severity,
+    VerifyStep,
     from_json,
     to_json,
 )
+from pydantic import ValidationError
 
 
 class TestVersionConstants:
-    def test_protocol_version_is_one(self):
-        assert PROTOCOL_VERSION == 1
+    def test_protocol_version_is_two(self):
+        assert PROTOCOL_VERSION == 2
 
-    def test_rules_version_is_one(self):
-        assert RULES_VERSION == 1
+    def test_rules_version_is_two(self):
+        assert RULES_VERSION == 2
+
+    def test_rules_version_min_supported_is_one(self):
+        # v1 rules must keep validating during the transition window.
+        assert RULES_VERSION_MIN_SUPPORTED == 1
 
 
 class TestRule:
@@ -52,7 +66,8 @@ class TestRule:
             title="Large files",
             match=FileSizeMatch(),
         )
-        assert rule.rules_version == RULES_VERSION
+        # v1 default keeps backward compatibility with un-versioned YAML.
+        assert rule.rules_version == RULES_VERSION_MIN_SUPPORTED
         assert rule.weight == 1.0
         assert rule.severity == Severity.WARN
         assert rule.match.threshold_lines == 500
@@ -528,3 +543,190 @@ class TestSchemaExport:
         assert schema_path.exists(), f"Run `make schema` to regenerate {schema_path}"
         data = json.loads(schema_path.read_text())
         assert "$defs" in data or "properties" in data
+
+
+# ---------------------------------------------------------------------------
+# Action contract (rules_version >= 2)
+# ---------------------------------------------------------------------------
+
+
+def _v2_min_rule_dict(**overrides):
+    """Helper: returns a minimal valid rules_version=2 rule dict.
+
+    Saves rebuilding the boilerplate on every test below.
+    """
+    base = {
+        "rules_version": 2,
+        "id": "test.minimal",
+        "pillar": "feedback",
+        "title": "test minimal v2 rule",
+        "match": {"type": "path_glob", "require_globs": ["AGENTS.md"]},
+        "action": {
+            "kind": "create_file",
+            "path": "AGENTS.md",
+            "template": "# Agents guide\n",
+        },
+        "verify": {"command": "test -f AGENTS.md", "description": ""},
+    }
+    base.update(overrides)
+    return base
+
+
+class TestActionContract:
+    """``rules_version >= 2`` requires a structured action + verify pair.
+
+    Tests cover the six action kinds, the precondition / context_probe
+    decorations, the v2-required validator, and the round-trip via
+    serialization helpers.
+    """
+
+    def test_create_file_action(self):
+        a = CreateFileAction(path="AGENTS.md", template="# Hi\n")
+        assert a.kind == "create_file"
+        assert a.preconditions == []
+        assert a.context_probe == []
+
+    def test_append_to_file_action(self):
+        a = AppendToFileAction(
+            path="Makefile",
+            template="test:\n\t{language_test_command}\n",
+            preconditions=[Precondition(exists="Makefile")],
+            context_probe=[ContextProbe(detect=ContextProbeKind.PRIMARY_LANGUAGE)],
+        )
+        assert a.preconditions[0].exists == "Makefile"
+        assert a.context_probe[0].detect == ContextProbeKind.PRIMARY_LANGUAGE
+
+    def test_insert_after_action(self):
+        a = InsertAfterAction(
+            path=".github/workflows/ci.yml",
+            after_pattern=r"^name:\s",
+            template="\nconcurrency:\n  group: ${{ github.workflow }}\n",
+        )
+        assert a.after_pattern.startswith("^name:")
+
+    def test_edit_gitignore_action(self):
+        a = EditGitignoreAction(entries=[".env", "node_modules/", ".venv/"])
+        assert a.kind == "edit_gitignore"
+        assert ".env" in a.entries
+
+    def test_edit_gitignore_action_requires_entries(self):
+        with pytest.raises(ValidationError):
+            EditGitignoreAction(entries=[])
+
+    def test_modify_manifest_field_action(self):
+        a = ModifyManifestFieldAction(
+            manifest="pyproject.toml",
+            field_path="project.scripts.demo",
+            value="my_pkg.cli:main",
+        )
+        assert a.kind == "modify_manifest_field"
+        assert a.field_path == "project.scripts.demo"
+
+    def test_run_command_action(self):
+        a = RunCommandAction(
+            command="gh extension install ...",
+            description="install the gh extension",
+        )
+        assert a.kind == "run_command"
+
+    def test_action_kind_dispatch_via_dict(self):
+        rule = Rule.model_validate(
+            _v2_min_rule_dict(
+                action={
+                    "kind": "edit_gitignore",
+                    "entries": [".env"],
+                }
+            )
+        )
+        assert isinstance(rule.action, EditGitignoreAction)
+
+    def test_action_unknown_kind_rejected(self):
+        with pytest.raises(ValidationError):
+            Rule.model_validate(
+                _v2_min_rule_dict(action={"kind": "wipe_disk"})
+            )
+
+    def test_v2_requires_action(self):
+        d = _v2_min_rule_dict()
+        d.pop("action")
+        with pytest.raises(ValidationError) as exc:
+            Rule.model_validate(d)
+        assert "action" in str(exc.value).lower()
+
+    def test_v2_requires_verify(self):
+        d = _v2_min_rule_dict()
+        d.pop("verify")
+        with pytest.raises(ValidationError) as exc:
+            Rule.model_validate(d)
+        assert "verify" in str(exc.value).lower()
+
+    def test_v1_does_not_require_action(self):
+        # Backward compatibility: legacy YAML still validates.
+        rule = Rule.model_validate(
+            {
+                "rules_version": 1,
+                "id": "x",
+                "pillar": "flow",
+                "title": "x",
+                "match": {"type": "file_size"},
+            }
+        )
+        assert rule.action is None
+        assert rule.verify is None
+
+    def test_v2_round_trip(self):
+        rule = Rule.model_validate(_v2_min_rule_dict())
+        s = to_json(rule)
+        restored = from_json(Rule, s)
+        assert restored.rules_version == 2
+        assert isinstance(restored.action, CreateFileAction)
+        assert restored.verify.command == "test -f AGENTS.md"
+
+    def test_verify_step_defaults(self):
+        v = VerifyStep(command="test -f AGENTS.md")
+        assert v.timeout_seconds == 15
+        assert v.offline is True
+
+    def test_finding_can_carry_action_and_verify(self):
+        f = Finding(
+            rule_id="agent_docs.canonical",
+            pillar=Pillar.COGNITIVE_LOAD,
+            severity=Severity.WARN,
+            message="No AGENTS.md present",
+            action=CreateFileAction(path="AGENTS.md", template="# Hi\n"),
+            verify=VerifyStep(command="test -f AGENTS.md"),
+        )
+        assert f.action.kind == "create_file"
+        assert f.verify.command == "test -f AGENTS.md"
+
+    def test_action_extra_fields_rejected(self):
+        with pytest.raises(ValidationError):
+            CreateFileAction(path="x", template="y", extra_field="boom")
+
+    def test_context_probe_unknown_detect_rejected(self):
+        with pytest.raises(ValidationError):
+            ContextProbe(detect="invent_a_signal")
+
+    def test_v2_with_preconditions_serialises(self):
+        rule = Rule.model_validate(
+            _v2_min_rule_dict(
+                action={
+                    "kind": "append_to_file",
+                    "path": "Makefile",
+                    "template": "test:\n\tpytest tests/\n",
+                    "preconditions": [
+                        {"exists": "Makefile"},
+                        {"manifest_language": "python"},
+                    ],
+                    "context_probe": [
+                        {"detect": "primary_language"},
+                        {"detect": "makefile_targets"},
+                    ],
+                }
+            )
+        )
+        s = to_json(rule)
+        restored = from_json(Rule, s)
+        assert isinstance(restored.action, AppendToFileAction)
+        assert len(restored.action.preconditions) == 2
+        assert restored.action.context_probe[1].detect == ContextProbeKind.MAKEFILE_TARGETS

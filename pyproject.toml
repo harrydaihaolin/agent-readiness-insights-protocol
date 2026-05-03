@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-readiness-insights-protocol"
-version = "0.1.0"
+version = "0.2.0"
 description = "Shared schema, dataclasses, and version constants for the agent-readiness insights ecosystem."
 readme = "README.md"
 requires-python = ">=3.11"
