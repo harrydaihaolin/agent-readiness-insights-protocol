@@ -66,12 +66,14 @@ class TestRule:
             pillar=Pillar.COGNITIVE_LOAD,
             title="Large files",
             match=FileSizeMatch(),
+            provenance="agent-readiness/repo_shape.large_files",
         )
         # v1 default keeps backward compatibility with un-versioned YAML.
         assert rule.rules_version == RULES_VERSION_MIN_SUPPORTED
         assert rule.weight == 1.0
         assert rule.severity == Severity.WARN
         assert rule.match.threshold_lines == 500
+        assert rule.provenance == "agent-readiness/repo_shape.large_files"
 
     def test_rule_with_manifest_field_match(self):
         rule = Rule(
@@ -79,6 +81,7 @@ class TestRule:
             pillar=Pillar.COGNITIVE_LOAD,
             title="Manifest declares scripts",
             match=ManifestFieldMatch(manifest="pyproject.toml", field_path="project.scripts"),
+            provenance="agent-readiness/manifest.has_scripts",
         )
         assert rule.match.manifest == "pyproject.toml"
 
@@ -89,8 +92,20 @@ class TestRule:
                 pillar=Pillar.FLOW,
                 title="x",
                 match=FileSizeMatch(),
+                provenance="agent-readiness/x",
                 unknown_field="should fail",
             )
+
+    def test_provenance_required(self):
+        """Every rule must declare provenance — moat invariant."""
+        with pytest.raises(ValidationError) as exc:
+            Rule(
+                id="x",
+                pillar=Pillar.FLOW,
+                title="x",
+                match=FileSizeMatch(),
+            )
+        assert "provenance" in str(exc.value).lower()
 
     def test_serialization_roundtrip(self):
         rule = Rule(
@@ -99,6 +114,7 @@ class TestRule:
             title="Large files",
             match=FileSizeMatch(threshold_lines=300, exclude_globs=["*.lock"]),
             insight_query="large files",
+            provenance="agent-readiness/repo_shape.large_files",
         )
         s = to_json(rule)
         restored = from_json(Rule, s)
@@ -112,6 +128,7 @@ class TestRule:
                 "pillar": "cognitive_load",
                 "title": "file size",
                 "match": {"type": "file_size", "threshold_lines": 200},
+                "provenance": "agent-readiness/scripts.file_size",
             }
         )
         assert isinstance(rule.match, FileSizeMatch)
@@ -123,6 +140,7 @@ class TestRule:
                 "id": "env.parity_strict",
                 "pillar": "flow",
                 "title": "env reads but no .env.example",
+                "provenance": "agent-readiness/env.parity_strict",
                 "match": {
                     "type": "composite",
                     "op": "and",
@@ -149,6 +167,7 @@ class TestRule:
                 "id": "agent_docs.absent",
                 "pillar": "cognitive_load",
                 "title": "Fires when AGENTS.md present (demo)",
+                "provenance": "agent-readiness/agent_docs.absent",
                 "match": {
                     "type": "composite",
                     "op": "not",
@@ -168,6 +187,7 @@ class TestRule:
                 "id": "x.nested",
                 "pillar": "flow",
                 "title": "nested composite",
+                "provenance": "agent-readiness/x.nested",
                 "match": {
                     "type": "composite",
                     "op": "or",
@@ -193,6 +213,7 @@ class TestRule:
                     "id": "bad.composite",
                     "pillar": "flow",
                     "title": "no clauses",
+                    "provenance": "agent-readiness/bad.composite",
                     "match": {"type": "composite", "op": "and", "clauses": []},
                 }
             )
@@ -251,6 +272,7 @@ class TestPrivateMatch:
                 "id": "git.has_history",
                 "pillar": "flow",
                 "title": "Repo has git history",
+                "provenance": "agent-readiness/git.has_history",
                 "match": {
                     "type": "git_log_query",
                     "command": "rev-list --count HEAD",
@@ -270,6 +292,7 @@ class TestPrivateMatch:
                 "id": "x",
                 "pillar": "cognitive_load",
                 "title": "x",
+                "provenance": "agent-readiness/x",
                 "match": {"type": "file_size", "threshold_lines": 100},
             }
         )
@@ -286,6 +309,7 @@ class TestPrivateMatch:
                     "id": "x",
                     "pillar": "cognitive_load",
                     "title": "x",
+                    "provenance": "agent-readiness/x",
                     "match": {"type": "file_size", "threshold_lines": -1},
                 }
             )
@@ -296,6 +320,7 @@ class TestPrivateMatch:
                 "id": "complex.signal",
                 "pillar": "safety",
                 "title": "code complexity AND high churn",
+                "provenance": "agent-readiness/complex.signal",
                 "match": {
                     "type": "composite",
                     "op": "and",
@@ -325,6 +350,7 @@ class TestPrivateMatch:
             id="git.has_history",
             pillar=Pillar.FLOW,
             title="Repo has git history",
+            provenance="agent-readiness/git.has_history",
             match=PrivateMatch.model_validate(
                 {
                     "type": "git_log_query",
@@ -388,6 +414,7 @@ class TestFixTemplate:
             pillar=Pillar.FLOW,
             title="x",
             match=FileSizeMatch(),
+            provenance="agent-readiness/x",
         )
         assert rule.fix_template is None
 
@@ -397,6 +424,7 @@ class TestFixTemplate:
                 "id": "x",
                 "pillar": "feedback",
                 "title": "x",
+                "provenance": "agent-readiness/x",
                 "match": {"type": "path_glob", "require_globs": ["AGENTS.md"]},
                 "fix_template": {
                     "kind": "create_file",
@@ -416,6 +444,7 @@ class TestFixTemplate:
             title="x",
             match=FileSizeMatch(),
             fix_template=ft,
+            provenance="agent-readiness/x",
         )
         s = to_json(rule)
         restored = from_json(Rule, s)
@@ -434,6 +463,7 @@ class TestFixTemplate:
             title="x",
             match=FileSizeMatch(),
             fix_template=ft,
+            provenance="agent-readiness/x",
         )
         assert isinstance(rule.fix_template, InsertAfterFix)
         assert rule.fix_template.after_pattern == r"^all:"
@@ -445,6 +475,7 @@ class TestFixTemplate:
                     "id": "x",
                     "pillar": "flow",
                     "title": "x",
+                    "provenance": "agent-readiness/x",
                     "match": {"type": "path_glob", "require_globs": ["X"]},
                     "fix_template": {
                         "kind": "delete_file",  # not allowed
@@ -561,6 +592,7 @@ def _v2_min_rule_dict(**overrides):
         "id": "test.minimal",
         "pillar": "feedback",
         "title": "test minimal v2 rule",
+        "provenance": "agent-readiness/test.minimal",
         "match": {"type": "path_glob", "require_globs": ["AGENTS.md"]},
         "action": {
             "kind": "create_file",
@@ -669,6 +701,7 @@ class TestActionContract:
                 "id": "x",
                 "pillar": "flow",
                 "title": "x",
+                "provenance": "agent-readiness/x",
                 "match": {"type": "file_size"},
             }
         )
