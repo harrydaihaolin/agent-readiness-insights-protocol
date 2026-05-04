@@ -504,6 +504,18 @@ class Rule(BaseModel):
         default=None,
         description="Free-text query the engine uses to retrieve related insights for findings of this rule.",
     )
+    provenance: str = Field(
+        description=(
+            "Attribution string identifying the upstream origin of this "
+            "rule. Required so every rule that ships with this protocol "
+            "carries a clear authorship trail. Format: "
+            "``agent-readiness/<rule-id>`` for native rules, "
+            "``<owner>/<repo>#<anchor>`` for ports of other open-source "
+            "rule packs (e.g. ``microsoft/agentrc#docs.agents-md``). The "
+            "field is mandatory; contributors who fork this protocol must "
+            "preserve the provenance line of any rule they redistribute."
+        ),
+    )
 
     @model_validator(mode="after")
     def _v2_requires_action_and_verify(self) -> Rule:

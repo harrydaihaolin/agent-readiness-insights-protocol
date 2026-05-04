@@ -852,6 +852,11 @@
     "pillar": {
       "$ref": "#/$defs/Pillar"
     },
+    "provenance": {
+      "description": "Attribution string identifying the upstream origin of this rule. Required so every rule that ships with this protocol carries a clear authorship trail. Format: ``agent-readiness/<rule-id>`` for native rules, ``<owner>/<repo>#<anchor>`` for ports of other open-source rule packs (e.g. ``microsoft/agentrc#docs.agents-md``). The field is mandatory; contributors who fork this protocol must preserve the provenance line of any rule they redistribute.",
+      "title": "Provenance",
+      "type": "string"
+    },
     "rules_version": {
       "default": 1,
       "description": "Schema version this rule conforms to. Defaults to the lowest supported version so legacy YAMLs without an explicit ``rules_version:`` line still validate. New rules should set this to RULES_VERSION (the latest) and supply an ``action`` + ``verify`` pair. Loaders gate on this.",
@@ -890,7 +895,8 @@
     "id",
     "pillar",
     "title",
-    "match"
+    "match",
+    "provenance"
   ],
   "title": "Rule",
   "type": "object"
